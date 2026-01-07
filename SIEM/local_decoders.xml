@@ -1,0 +1,55 @@
+<decoder name="">
+        <prematch>uid:\d:*\ssid:\d*\stty:\.*\scwd:\.*\sfilename:\.*</prematch>
+</decoder>
+
+<decoder name="_child">
+        <parent> </parent>
+        <regex type="PCRE2">tty:(\S+)</regex>
+        <order>tty</order>
+</decoder>
+
+<decoder name="_child">
+        <parent></parent>
+        <regex type="PCRE2">uid:(\S+)</regex>
+        <order>uid</order>
+</decoder>
+
+<decoder name="_child">
+        <parent></parent>
+        <regex type="PCRE2">filename:(\S+)\]</regex>
+        <order>filename</order>
+</decoder>
+
+<decoder name="_child">
+        <parent></parent>
+        <regex type="PCRE2">cwd:(\S+)</regex>
+        <order>cwd</order>
+</decoder>
+
+<decoder name="_child">
+        <parent></parent>
+        <regex type="PCRE2">\]:\s(.*)$</regex>
+        <order>cmd</order>
+</decoder>
+
+<decoder name="">
+        <prematch>^</prematch>
+</decoder>
+
+<decoder name="_child">
+        <parent></parent>
+        <regex>^\s(\S*)\s</regex>
+        <order>day</order>
+</decoder>
+
+<decoder name="_child">
+        <parent></parent>
+        <regex>(\d\d:\d\d:\d\d\s\SM)</regex>
+        <order>time</order>
+</decoder>
+
+<decoder name="_child">
+        <parent></parent>
+        <regex>--\s(\.+)</regex>
+        <order>cmd</order>
+</decoder>

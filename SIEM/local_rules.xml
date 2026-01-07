@@ -1,0 +1,532 @@
+<group name=",">
+	<rule id="1000670" level="15">
+	  <if_sid>60009</if_sid>
+	  <field name="win.system.providerName">^Image\sLoad$</field>
+	  <description>: Unbacked Image Load</description>
+	</rule>
+	<rule id="100671" level="15">
+	  <if_sid>60009</if_sid>
+	  <field name="win.system.providerName">^Process\sStart$</field>
+	  <description>: Potential Malicious Process Start</description>
+	</rule>
+	<rule id="100672" level="15">
+	  <if_sid>60009</if_sid>
+	  <field name="win.system.providerName">^Thread\sStart$</field>
+	  <description>: Potentially Malicious Thread Start</description>
+	</rule>
+</group>
+
+
+<group name="syslog, ">
+    <rule id="100682" level="3">
+        <decoded_as></decoded_as>
+        <description>: Command Executed</description>
+    </rule>
+    <rule id="100683" level="12">
+        <decoded_as></decoded_as>
+        <field name="uid" negate="yes" type="PCRE2">[^\d]0\[^\d]|root</field>
+        <description>: Unexpected User Ran Command</description>
+    </rule>
+    <rule id="100684" level="12">
+        <decoded_as></decoded_as>
+        <field name="tty" negate="yes" type="PCRE2">.*\(none\).*</field>
+        <description>Command ran with a TTY.</description>
+    </rule>
+    <rule id="100685" level="15">
+        <decoded_as></decoded_as>
+        <field name="filename" type="PCRE2">.*(sudo|su|curl|wget|fetch|useradd|adduser|userdel|crontab|chpasswd|passwd|service|systemctl|kill|modprobe|insmod|ufw|iptables|pfctl|chmod|chattr|python|netcat|whoami|wall)</field>
+        <description>Suspicious command ran.</description>
+    </rule>
+</group>
+
+<group name=",">
+  <rule id="100673" level="15">
+    <decoded_as></decoded_as>
+    <description>: Redshell command executed.</description>
+  </rule>
+</group>
+
+<group name="windows,sysmon">
+  <rule id="100200" level="12">
+    <if_sid>61610</if_sid>
+    <description>Possible process injection activity detected from "$(win.eventdata.sourceImage)" on "$(win.eventdata.targetImage)"</description>
+    <mitre>
+      <id>T1055.001</id>
+    </mitre>
+  </rule>
+ 
+  <rule id="100100" level="0">
+    <if_sid>100200</if_sid>
+    <field name="win.eventdata.sourceImage" type="pcre2">(C:\\\\Windows\\\\system32)|chrome.exe</field>
+    <description>Ignore Windows binaries and Chrome</description>
+  </rule>
+  <rule id="100201" level="12">
+    <if_sid>61600</if_sid>
+    <description>Process injection activity detected: "$(win.eventdata.Image)" has been tampered with</description>
+    <mitre>
+      <id>T1055.012</id>
+    </mitre>
+  </rule>
+</group>
+
+<group name="windows,firewall">
+  <rule id="100002" level="0">
+    <if_sid>18101</if_sid>
+    <id>2003</id>
+    <description>Firewall configuration changed</description>
+  </rule>
+  <rule id="100003" level="3">
+    <if_sid>100002</if_sid>
+    <regex>Type: Enable \.* Value: Yes</regex>
+    <description>Firewall enabled for private/domain profile</description>
+  </rule>
+  <rule id="100004" level="3">
+    <if_sid>100003</if_sid>
+    <regex>Public profile</regex>
+    <description>Firewall enabled for public profile</description>
+  </rule>
+  <rule id="100005" level="3">
+    <if_sid>100002</if_sid>
+    <regex>Type: Enable \.* Value: No</regex>
+    <description>Firewall disabled for private/domain profile</description>
+  </rule>
+  <rule id="100006" level="4">
+    <if_sid>100005</if_sid>
+    <regex>Public profile</regex>
+    <description>Firewall disabled for public profile</description>
+  </rule>
+  <rule id="100007" level="3">
+    <if_sid>18101</if_sid>
+    <id>2004</id>
+    <description>Firewall rule created</description>
+  </rule>
+  <rule id="100008" level="3">
+    <if_sid>18101</if_sid>
+    <id>2005</id>
+    <description>Firewall rule modified</description>
+  </rule>
+  <rule id="100009" level="3">
+    <if_sid>18101</if_sid>
+    <id>2006</id>
+    <description>Firewall rule deleted</description>
+  </rule>
+</group>
+
+<group name="security_event, windows,">
+
+  <!-- This rule detects when PsExec is launched remotely to perform lateral movement within the domain. The rule uses Sysmon events collected from the domain controller. -->
+  <rule id="110004" level="12">
+    <if_sid>61600</if_sid>
+    <field name="win.system.eventID" type="pcre2">17|18</field>
+    <field name="win.eventdata.PipeName" type="pcre2">\\PSEXESVC</field>
+    <options>no_full_log</options>
+    <description>PsExec service launched for possible lateral movement within the domain</description>
+  </rule>
+
+  <!-- This rule detects NTDS.dit file extraction using a sysmon event captured on the domain controller -->
+  <rule id="110006" level="12">
+    <if_group>sysmon_event1</if_group>
+    <field name="win.eventdata.commandLine" type="pcre2">NTDSUTIL</field>
+    <description>Possible NTDS.dit file extraction using ntdsutil.exe</description>
+  </rule>
+
+  <!-- This rule detects Pass-the-ash (PtH) attacks using windows security event 4624 on the compromised endpoint -->
+  <rule id="110007" level="12">
+    <if_sid>60103</if_sid>
+    <field name="win.system.eventID">^4624$</field>
+    <field name="win.eventdata.LogonProcessName" type="pcre2">seclogo</field>
+    <field name="win.eventdata.LogonType" type="pcre2">9</field>
+    <field name="win.eventdata.AuthenticationPackageName" type="pcre2">Negotiate</field>
+    <field name="win.eventdata.LogonGuid" type="pcre2">{00000000-0000-0000-0000-000000000000}</field>
+    <options>no_full_log</options>
+    <description>Possible Pass the hash attack</description>
+  </rule>
+  
+  <!-- This rule detects credential dumping when the command sekurlsa::logonpasswords is run on mimikatz -->
+  <rule id="110008" level="12">
+    <if_sid>61612</if_sid>
+    <field name="win.eventdata.TargetImage" type="pcre2">(?i)\\\\system32\\\\lsass.exe</field>
+    <field name="win.eventdata.GrantedAccess" type="pcre2">(?i)0x1010</field>
+    <description>Possible credential dumping using mimikatz</description>
+  </rule>
+  
+</group>
+
+<group name="syscollector,">
+  <!-- Ports -->
+  <rule id="100310" level="3" >
+      <if_sid>221</if_sid>
+      <field name="type">dbsync_ports</field>
+      <description>Syscollector ports event.</description>
+  </rule>
+
+  <rule id="100311" level="3" >
+      <if_sid>100310</if_sid>
+      <field name="operation_type">INSERTED</field>
+      <description>The port: $(port.local_port), with local ip: $(port.local_ip) has been opened. Syscollector creation event detected.</description>
+  </rule>
+
+  <rule id="100312" level="3" >
+      <if_sid>100310</if_sid>
+      <field name="operation_type">MODIFIED</field>
+      <description>The port: $(port.local_port), with local ip: $(port.local_ip) has been modified. Syscollector modification event detected.</description>
+  </rule>
+
+  <rule id="100313" level="3" >
+      <if_sid>100310</if_sid>
+      <field name="operation_type">DELETED</field>
+      <description>The port: $(port.local_port), with local ip: $(port.local_ip) has been closed. Syscollector deletion event detected.</description>
+  </rule>
+
+  <!-- Suspicious Ports - Common Backdoor/Attack Ports -->
+  <rule id="100314" level="12" >
+      <if_sid>100311</if_sid>
+      <field name="port.local_port" type="pcre2">^(4444|5555|6666|6667|31337|12345|54321|8080|8888|9999|1337|1234|4321|6969|31337)$</field>
+      <description>CCDC Alert: Suspicious port opened: $(port.local_port) on $(port.local_ip). Possible backdoor or attack service.</description>
+      <mitre>
+        <id>T1571</id>
+      </mitre>
+  </rule>
+
+  <!-- High Ports (Potential Backdoors) -->
+  <rule id="100315" level="10" >
+      <if_sid>100311</if_sid>
+      <field name="port.local_port">^[1-9][0-9]{4,}$</field>
+      <field name="port.state">LISTEN</field>
+      <description>CCDC Alert: High port opened: $(port.local_port) on $(port.local_ip). Process: $(port.process). Possible backdoor.</description>
+      <mitre>
+        <id>T1571</id>
+      </mitre>
+  </rule>
+
+  <!-- Processes -->
+  <rule id="100320" level="3" >
+      <if_sid>221</if_sid>
+      <field name="type">dbsync_processes</field>
+      <description>Syscollector processes event.</description>
+  </rule>
+
+  <rule id="100321" level="10" >
+      <if_sid>100320</if_sid>
+      <field name="operation_type">INSERTED</field>
+      <field name="process.name" type="pcre2">(?i)(nc|netcat|ncat|socat|meterpreter|beacon|payload|backdoor|shell|bind|reverse|exploit|msf|metasploit|mimikatz|procdump|psexec|wmic|powershell|cmd|bash|sh|python|perl|ruby|php|curl|wget|fetch)</field>
+      <description>CCDC Alert: Suspicious process started: $(process.name) with PID $(process.pid). Command: $(process.cmd)</description>
+      <mitre>
+        <id>T1059</id>
+      </mitre>
+  </rule>
+
+  <rule id="100322" level="12" >
+      <if_sid>100320</if_sid>
+      <field name="operation_type">INSERTED</field>
+      <field name="process.cmd" type="pcre2">(?i)(base64|encoded|obfuscated|decode|encrypt|decrypt|bypass|disable|firewall|antivirus|defender|wmic|powershell.*-enc|powershell.*-e |cmd.*\/c.*powershell)</field>
+      <description>CCDC Alert: Process with suspicious command line detected: $(process.name) - $(process.cmd)</description>
+      <mitre>
+        <id>T1027</id>
+        <id>T1059</id>
+      </mitre>
+  </rule>
+
+  <!-- Programs/Software Installed -->
+  <rule id="100330" level="3" >
+      <if_sid>221</if_sid>
+      <field name="type">dbsync_packages</field>
+      <description>Syscollector packages event.</description>
+  </rule>
+
+  <rule id="100331" level="10" >
+      <if_sid>100330</if_sid>
+      <field name="operation_type">INSERTED</field>
+      <description>CCDC Alert: New program installed: $(program.name) version $(program.version) from $(program.vendor)</description>
+  </rule>
+
+  <rule id="100332" level="12" >
+      <if_sid>100331</if_sid>
+      <field name="program.name" type="pcre2">(?i)(nmap|metasploit|mimikatz|wireshark|tcpdump|netcat|ncat|socat|putty|winscp|filezilla|vnc|teamviewer|anydesk|remote|backdoor|exploit|hack|crack|keylog)</field>
+      <description>CCDC Alert: Suspicious program installed: $(program.name). Possible attacker tool.</description>
+      <mitre>
+        <id>T1040</id>
+        <id>T1059</id>
+      </mitre>
+  </rule>
+
+  <!-- Network Interfaces -->
+  <rule id="100340" level="3" >
+      <if_sid>221</if_sid>
+      <field name="type">dbsync_netiface</field>
+      <description>Syscollector network interfaces event.</description>
+  </rule>
+
+  <rule id="100341" level="10" >
+      <if_sid>100340</if_sid>
+      <field name="operation_type">INSERTED</field>
+      <description>CCDC Alert: New network interface detected: $(netinfo.iface.name) with MAC $(netinfo.iface.mac). Possible unauthorized network adapter.</description>
+      <mitre>
+        <id>T1018</id>
+      </mitre>
+  </rule>
+
+  <rule id="100342" level="12" >
+      <if_sid>100340</if_sid>
+      <field name="operation_type">MODIFIED</field>
+      <field name="netinfo.iface.state">UP</field>
+      <description>CCDC Alert: Network interface $(netinfo.iface.name) state changed to UP. Possible network reconfiguration.</description>
+  </rule>
+
+  <!-- Users -->
+  <rule id="100350" level="3" >
+      <if_sid>221</if_sid>
+      <field name="type">dbsync_users</field>
+      <description>Syscollector users event.</description>
+  </rule>
+
+  <rule id="100351" level="10" >
+      <if_sid>100350</if_sid>
+      <field name="operation_type">INSERTED</field>
+      <description>CCDC Alert: New user account created: $(user.user_name) (UID: $(user.user_id), GID: $(user.user_group_id))</description>
+      <mitre>
+        <id>T1136</id>
+      </mitre>
+  </rule>
+
+  <rule id="100352" level="12" >
+      <if_sid>100351</if_sid>
+      <field name="user.user_name" type="pcre2">(?i)(admin|administrator|root|backdoor|hack|test|guest|temp|service|svc|user1|user2|newuser|testuser|hacker|attacker)</field>
+      <description>CCDC Alert: Suspicious user account created: $(user.user_name). Possible unauthorized account.</description>
+      <mitre>
+        <id>T1136.001</id>
+        <id>T1136.002</id>
+      </mitre>
+  </rule>
+
+  <rule id="100353" level="12" >
+      <if_sid>221</if_sid>
+      <field name="type">dbsync_users</field>
+      <field name="operation_type">MODIFIED</field>
+      <field name="user.user_id">0</field>
+      <description>CCDC Alert: User account modified to UID 0 (root): $(user.user_name). Possible privilege escalation.</description>
+      <mitre>
+        <id>T1078</id>
+      </mitre>
+  </rule>
+
+  <!-- Services -->
+  <rule id="100360" level="3" >
+      <if_sid>221</if_sid>
+      <field name="type">dbsync_services</field>
+      <description>Syscollector services event.</description>
+  </rule>
+
+  <rule id="100361" level="10" >
+      <if_sid>100360</if_sid>
+      <field name="operation_type">INSERTED</field>
+      <description>CCDC Alert: New service detected: $(service.service_name) - $(service.service_description)</description>
+  </rule>
+
+  <rule id="100362" level="12" >
+      <if_sid>100361</if_sid>
+      <field name="service.service_name" type="pcre2">(?i)(backdoor|shell|bind|reverse|exploit|hack|keylog|remote|vnc|rdp|telnet|ssh|nc|netcat)</field>
+      <description>CCDC Alert: Suspicious service created: $(service.service_name). Possible persistence mechanism.</description>
+      <mitre>
+        <id>T1543.003</id>
+      </mitre>
+  </rule>
+
+  <rule id="100363" level="10" >
+      <if_sid>100360</if_sid>
+      <field name="operation_type">MODIFIED</field>
+      <field name="service.service_state">running</field>
+      <field name="service.service_enabled">yes</field>
+      <description>CCDC Alert: Service modified and started: $(service.service_name). State: $(service.service_state), Enabled: $(service.service_enabled)</description>
+  </rule>
+
+  <rule id="100364" level="12" >
+      <if_sid>100360</if_sid>
+      <field name="operation_type">MODIFIED</field>
+      <field name="service.process_executable" type="pcre2">(?i)(cmd|powershell|python|perl|ruby|php|bash|sh|nc|netcat|wmic)</field>
+      <description>CCDC Alert: Service executable changed to suspicious binary: $(service.service_name) -> $(service.process_executable)</description>
+      <mitre>
+        <id>T1543.003</id>
+      </mitre>
+  </rule>
+
+  <!-- Browser Extensions -->
+  <rule id="100370" level="3" >
+      <if_sid>221</if_sid>
+      <field name="type">dbsync_browser_extensions</field>
+      <description>Syscollector browser extensions event.</description>
+  </rule>
+
+  <rule id="100371" level="10" >
+      <if_sid>100370</if_sid>
+      <field name="operation_type">INSERTED</field>
+      <description>CCDC Alert: New browser extension installed: $(package.package_name) in $(browser.browser_name)</description>
+  </rule>
+
+  <rule id="100372" level="12" >
+      <if_sid>100371</if_sid>
+      <field name="package.package_name" type="pcre2">(?i)(keylog|password|stealer|hack|backdoor|remote|access|control|inject)</field>
+      <description>CCDC Alert: Suspicious browser extension installed: $(package.package_name). Possible credential stealer.</description>
+      <mitre>
+        <id>T1539</id>
+      </mitre>
+  </rule>
+
+  <!-- Network Configuration Changes -->
+  <rule id="100380" level="10" >
+      <if_sid>221</if_sid>
+      <field name="type">dbsync_netaddr</field>
+      <field name="operation_type">INSERTED</field>
+      <description>CCDC Alert: New network address configured: $(netaddr.address) on interface $(netaddr.iface)</description>
+  </rule>
+
+  <rule id="100381" level="12" >
+      <if_sid>100380</if_sid>
+      <field name="netaddr.address" type="pcre2">^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)</field>
+      <field name="netaddr.netmask">255.255.255.0</field>
+      <description>CCDC Alert: New private network address configured: $(netaddr.address). Possible network pivot or lateral movement setup.</description>
+      <mitre>
+        <id>T1018</id>
+      </mitre>
+  </rule>
+
+  <!-- Process State Changes (Suspicious) -->
+  <rule id="100390" level="10" >
+      <if_sid>100320</if_sid>
+      <field name="operation_type">MODIFIED</field>
+      <field name="process.state">zombie</field>
+      <description>CCDC Alert: Process state changed to zombie: $(process.name) (PID: $(process.pid)). Possible process manipulation.</description>
+  </rule>
+
+  <!-- Groups -->
+  <rule id="100400" level="3" >
+      <if_sid>221</if_sid>
+      <field name="type">dbsync_groups</field>
+      <description>Syscollector groups event.</description>
+  </rule>
+
+  <rule id="100401" level="10" >
+      <if_sid>100400</if_sid>
+      <field name="operation_type">INSERTED</field>
+      <description>CCDC Alert: New group created: $(group.group_name) (GID: $(group.group_id))</description>
+  </rule>
+
+  <rule id="100402" level="12" >
+      <if_sid>100401</if_sid>
+      <field name="group.group_id">0</field>
+      <description>CCDC Alert: New group created with GID 0 (root): $(group.group_name). Possible privilege escalation attempt.</description>
+      <mitre>
+        <id>T1078</id>
+      </mitre>
+  </rule>
+
+  <!-- Hotfixes/Patches Removed -->
+  <rule id="100410" level="12" >
+      <if_sid>221</if_sid>
+      <field name="type">dbsync_hotfixes</field>
+      <field name="operation_type">DELETED</field>
+      <description>CCDC Alert: Security hotfix/update removed: $(hotfix). Possible system compromise or patch removal attack.</description>
+      <mitre>
+        <id>T1070</id>
+      </mitre>
+  </rule>
+
+  <!-- Multiple Rapid Changes (Attack Pattern) - High severity for any syscollector change -->
+  <rule id="100420" level="8">
+      <if_group>syscollector</if_group>
+      <description>CCDC Alert: System change detected via Syscollector. Monitor for rapid changes indicating active attack.</description>
+      <mitre>
+        <id>T1078</id>
+        <id>T1543</id>
+        <id>T1136</id>
+      </mitre>
+  </rule>
+</group>
+
+<group name="windows,powershell,">
+
+  <rule id="100201" level="8">
+    <if_sid>60009</if_sid>
+    <field name="win.eventdata.payload" type="pcre2">(?i)CommandInvocation</field>
+    <field name="win.system.message" type="pcre2">(?i)EncodedCommand|FromBase64String|EncodedArguments|-e\b|-enco\b|-en\b</field>
+    <description>Encoded command executed via PowerShell.</description>
+    <mitre>
+      <id>T1059.001</id>
+      <id>T1562.001</id>
+    </mitre>
+  </rule>
+  
+  <rule id="100202" level="4">
+    <if_sid>60009</if_sid>
+    <field name="win.system.message" type="pcre2">(?i)blocked by your antivirus software</field>
+    <description>Windows Security blocked malicious command executed via PowerShell.</description>
+    <mitre>
+      <id>T1059.001</id>  
+    </mitre>
+  </rule>
+
+  <rule id="100203" level="10">
+    <if_sid>60009</if_sid>
+    <field name="win.eventdata.payload" type="pcre2">(?i)CommandInvocation</field>    
+    <field name="win.system.message" type="pcre2">(?i)Add-Persistence|Find-AVSignature|Get-GPPAutologon|Get-GPPPassword|Get-HttpStatus|Get-Keystrokes|Get-SecurityPackages|Get-TimedScreenshot|Get-VaultCredential|Get-VolumeShadowCopy|Install-SSP|Invoke-CredentialInjection|Invoke-DllInjection|Invoke-Mimikatz|Invoke-NinjaCopy|Invoke-Portscan|Invoke-ReflectivePEInjection|Invoke-ReverseDnsLookup|Invoke-Shellcode|Invoke-TokenManipulation|Invoke-WmiCommand|Mount-VolumeShadowCopy|New-ElevatedPersistenceOption|New-UserPersistenceOption|New-VolumeShadowCopy|Out-CompressedDll|Out-EncodedCommand|Out-EncryptedScript|Out-Minidump|PowerUp|PowerView|Remove-Comments|Remove-VolumeShadowCopy|Set-CriticalProcess|Set-MasterBootRecord</field>
+    <description>Risky CMDLet executed. Possible malicious activity detected.</description>
+    <mitre>
+      <id>T1059.001</id>  
+    </mitre>
+  </rule>
+
+  <rule id="100204" level="8">
+    <if_sid>91802</if_sid>
+    <field name="win.eventdata.scriptBlockText" type="pcre2">(?i)mshta.*GetObject|mshta.*new ActiveXObject</field>
+    <description>Mshta used to download a file. Possible malicious activity detected.</description>
+    <mitre>
+      <id>T1059.001</id>  
+    </mitre>
+  </rule>
+
+  <rule id="100205" level="5">
+    <if_sid>60009</if_sid>
+    <field name="win.eventdata.contextInfo" type="pcre2">(?i)ExecutionPolicy bypass|exec bypass</field>
+    <description>PowerShell execution policy set to bypass.</description>
+    <mitre>
+      <id>T1059.001</id>
+    </mitre>
+  </rule>
+
+  <rule id="100206" level="5">
+    <if_sid>60009</if_sid>
+    <field name="win.eventdata.contextInfo" type="pcre2">(?i)Invoke-WebRequest|IWR.*-url|IWR.*-InFile</field>
+    <description>Invoke Webrequest executed, possible download cradle detected.</description>
+    <mitre>
+      <id>T1059.001</id>
+    </mitre>
+  </rule>
+
+</group>
+
+<group name="windows">
+  <rule id="110001" level="5">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.commandLine" type="pcre2">(bitsadmin)(?=.*(/transfer|/download|/priority))</field>
+    <description>Suspicious download and execution with BITS job on $(win.system.computer)</description>
+    <mitre>
+      <id>T1197</id>
+    </mitre>
+  </rule>
+  <rule id="110002" level="5">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.commandLine" type="pcre2">(mshta)(?=.*(exec|close))</field>
+    <description>Suspicious execution of a remote script with MSHTA on $(win.system.computer)</description>
+    <mitre>
+      <id>T1218.005</id>
+    </mitre>
+  </rule>
+  <rule id="110003" level="5">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.commandLine" type="pcre2">(regsvr32)(?=.*(/s|/u|/i|scrobj))</field>
+    <description>Suspicious remote code execution with Regsvr32 on $(win.system.computer)</description>
+    <mitre>
+      <id>T1218.010</id>
+    </mitre>
+  </rule>
+</group>
