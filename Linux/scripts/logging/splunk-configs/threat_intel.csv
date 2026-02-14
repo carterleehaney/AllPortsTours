@@ -1,0 +1,13 @@
+ip,domain,description,category
+# Known C2 IPs - populate before competition
+# Example entries below -- REPLACE WITH ACTUAL INTEL
+# 192.168.100.100,,Known red team C2,c2
+# 10.99.99.99,,Suspicious scanner,scanner
+#
+# Known bad domains
+# ,evil-domain.com,Known malware C2,c2
+# ,bad-dns.xyz,DGA domain,dga
+#
+# Format: ip,domain,description,category
+# Categories: c2, scanner, malware, dga, exfil
+# Leave ip or domain blank if only one applies

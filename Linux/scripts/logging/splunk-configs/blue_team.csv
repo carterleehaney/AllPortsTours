@@ -1,0 +1,6 @@
+ip,hostname,description
+# Blue team IPs - whitelist from C2 alerts
+# Populate before competition
+# Example:
+# 10.0.0.50,kali-box,Blue team Kali
+# 10.0.0.51,analyst-1,SOC analyst workstation

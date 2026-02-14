@@ -1,0 +1,72 @@
+###### CUSTOM CCDC RULES ######
+### SYSTEM FILES ###
+# modification of sensitive files and directories
+-w /etc/passwd -p w -k CCDC_modify_passwd
+-w /etc/shadow -p w -k CCDC_modify_shadow
+-w /etc/services -p w -k CCDC_modify_services
+-w /etc/systemd/ -p w -k CCDC_modify_systemd
+-w /etc/init.d/ -p w -k CCDC_modify_initd
+-w /etc/init/ -p w -k CCDC_modify_initd
+-w /etc/profile.d/ -p w -k CCDC_modify_profile
+-w /etc/profile -p w -k CCDC_modify_profile
+-w /etc/ssh/ -p w -k CCDC_modify_ssh_config
+#-w /etc/bash.bashrc -p w -k CCDC_modify_bashrc_global
+-w /etc/bashrc -p w -k CCDC_modify_bashrc_global
+-w /etc/sudoers -p w -k CCDC_modify_sudoers
+-w /etc/sudoers.d/ -p w -k CCDC_modify_sudoers
+-w /etc/pam.d/ -p w -k CCDC_modify_pamd
+-w /tmp/ -p w -k CCDC_modify_tmp
+-w /usr/sbin/ -p w -k CCDC_modify_binaries
+-w /usr/bin/ -p w -k CCDC_modify_binaries
+-w /bin/ -p w -k CCDC_modify_binaries
+-w /var/www/ -p w -k CCDC_modify_web
+
+### BINARIES ###
+# execution of suspicious binaries
+-w /usr/bin/passwd -p x -k CCDC_exec_passwd
+-w /usr/bin/whoami -p x -k CCDC_exec_whoami
+-w /usr/sbin/useradd -p x -k CCDC_exec_useradd
+-w /usr/sbin/adduser -p x -k CCDC_exec_adduser
+#-w /bin/bash -p x -k CCDC_new_shell
+-w /usr/bin/nc -p x -k CCDC_netcat
+
+### SYSCALLS ###
+# execve activity by web users (web shell)
+# euid=33 - www-data (apache/nginx, Debian-based)
+# euid=48 - apache (apache, RHEL-based)
+# euid=987 - nginx (nginx, RHEL-based)
+-a always,exit -F arch=b64 -F euid=33 -S execve -k CCDC_execve_web
+-a always,exit -F arch=b32 -F euid=33 -S execve -k CCDC_execve_web
+-a always,exit -F arch=b64 -F euid=48 -S execve -k CCDC_execve_web
+-a always,exit -F arch=b32 -F euid=48 -S execve -k CCDC_execve_web
+-a always,exit -F arch=b64 -F euid=987 -S execve -k CCDC_execve_web
+-a always,exit -F arch=b32 -F euid=987 -S execve -k CCDC_execve_web
+
+# outgoing Internet socket created by www-data user (reverse shell)
+-a always,exit -F arch=b32 -S socket -F a0=10 -F euid=33 -k CCDC_socket_web
+-a always,exit -F arch=b64 -S socket -F a0=10 -F euid=33 -k CCDC_socket_web
+-a always,exit -F arch=b32 -S socket -F a0=2 -F euid=33  -k CCDC_socket_web
+-a always,exit -F arch=b64 -S socket -F a0=2 -F euid=33  -k CCDC_socket_web
+
+### KERNEL MODIFICATION ###
+# See https://github.com/Neo23x0/auditd/blob/master/audit.rules
+# Kernel module loading and unloading
+-a always,exit -F perm=x -F auid!=-1 -F path=/sbin/insmod -k modules
+-a always,exit -F perm=x -F auid!=-1 -F path=/sbin/modprobe -k modules
+-a always,exit -F perm=x -F auid!=-1 -F path=/sbin/rmmod -k modules
+-a always,exit -F arch=b64 -S finit_module -S init_module -S delete_module -F auid!=-1 -k modules
+
+# Modprobe configuration
+-w /etc/modprobe.conf -p wa -k modprobe
+-w /etc/modprobe.d -p wa -k modprobe
+
+# KExec usage (all actions)
+-a always,exit -F arch=b64 -S kexec_load -k KEXEC
+
+
+### DYNAMIC ###
+# modification of /home/<USER>/.bashrc (replace <USER>)
+#-w /home/<USER>/.bashrc/ -p w -k CCDC_modify_bashrc_user
+
+# modification of /home/<USER>/.ssh directory (replace <USER>)
+#-w /home/<USER>/.ssh/ -p w -k CCDC_modify_ssh_user
