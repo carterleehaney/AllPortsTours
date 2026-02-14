@@ -1,0 +1,6 @@
+venv
+RunBetterPy
+__pycache__/
+Credentials/
+Scripts/
+hosts

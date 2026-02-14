@@ -1,17 +1,9 @@
-# Windows Inventory Script
-# Comprehensive system inventory and security audit for Windows Server 2008 - Windows 11
-# Modeled after Inventory.sh
+# Vibe Coded :) it works i think...
 
-#Requires -Version 2.0
+$ErrorActionPreference = "SilentlyContinue"
 
-# ============================================================================
-# CONFIGURATION AND SETUP
-# ============================================================================
-
-# Debug mode - set $env:DEBUG = 1 to enable verbose error output
 $Script:DebugMode = $env:DEBUG -eq "1"
 
-# Color configuration
 $Script:Colors = @{
     Green  = "Green"
     Blue   = "Cyan"
@@ -297,7 +289,127 @@ if (-not $Script:IsAdmin) {
 }
 
 # ============================================================================
-# HOST INFORMATION
+# QUICK LOOK - CRITICAL SUMMARY
+# ============================================================================
+
+Write-Host ""
+Write-Host "==================================================================" -ForegroundColor $Script:Colors.Green
+Write-Host "                        QUICK LOOK                               " -ForegroundColor $Script:Colors.Green
+Write-Host "==================================================================" -ForegroundColor $Script:Colors.Green
+Write-Host ""
+
+# --- Gather summary data ---
+$qlOS = Get-WmiObject -Class Win32_OperatingSystem
+$qlAdapters = Get-WmiObject -Class Win32_NetworkAdapterConfiguration -Filter "IPEnabled = True"
+$qlComputer = Get-WmiObject -Class Win32_ComputerSystem
+
+# Hostname
+Write-Info "Hostname" $env:COMPUTERNAME
+
+# Operating System
+Write-Info "Operating System" $qlOS.Caption
+
+# IP Addresses & MAC Addresses (one line per adapter)
+foreach ($adapter in $qlAdapters) {
+    $ipv4 = ($adapter.IPAddress | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' }) -join ", "
+    $mac  = $adapter.MACAddress
+    if ($ipv4) {
+        Write-Info "IP Address" "$ipv4  (MAC: $mac) - $($adapter.Description)"
+    }
+}
+
+# Domain / Workgroup
+if ($qlComputer.PartOfDomain) {
+    Write-Info "Domain" $qlComputer.Domain
+} else {
+    Write-Info "Workgroup" $qlComputer.Workgroup
+}
+
+# --- Detect Critical Services ---
+$criticalServices = @()
+
+# SSH
+$qlSSH = Get-Service -Name "sshd" -ErrorAction SilentlyContinue
+if ($qlSSH -and $qlSSH.Status -eq "Running") { $criticalServices += "SSH (OpenSSH Server)" }
+
+# RDP
+$qlRDP = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -ErrorAction SilentlyContinue).fDenyTSConnections
+if ($qlRDP -eq 0) { $criticalServices += "RDP (Remote Desktop)" }
+
+# WinRM
+$qlWinRM = Get-Service -Name "WinRM" -ErrorAction SilentlyContinue
+if ($qlWinRM -and $qlWinRM.Status -eq "Running") { $criticalServices += "WinRM (Windows Remote Management)" }
+
+# LDAP / Active Directory Domain Controller / Kerberos (NTDS = AD DS)
+$qlNTDS = Get-Service -Name "NTDS" -ErrorAction SilentlyContinue
+if ($qlNTDS -and $qlNTDS.Status -eq "Running") {
+    $criticalServices += "Active Directory Domain Controller (NTDS)"
+    $criticalServices += "LDAP (via AD DS)"
+    $criticalServices += "Kerberos (via AD DS)"
+} else {
+    # Check for standalone LDAP or Kerberos indicators
+    $qlKDC = Get-Service -Name "KDC" -ErrorAction SilentlyContinue
+    if ($qlKDC -and $qlKDC.Status -eq "Running") { $criticalServices += "Kerberos KDC" }
+}
+
+# SMB
+$qlSMB = Get-Service -Name "LanmanServer" -ErrorAction SilentlyContinue
+if ($qlSMB -and $qlSMB.Status -eq "Running") { $criticalServices += "SMB (File & Print Sharing)" }
+
+# IIS
+$qlIIS = Get-Service -Name "W3SVC" -ErrorAction SilentlyContinue
+if ($qlIIS -and $qlIIS.Status -eq "Running") { $criticalServices += "IIS (Web Server)" }
+
+# DNS Server
+$qlDNS = Get-Service -Name "DNS" -ErrorAction SilentlyContinue
+if ($qlDNS -and $qlDNS.Status -eq "Running") { $criticalServices += "DNS Server" }
+
+# DHCP Server
+$qlDHCP = Get-Service -Name "DHCPServer" -ErrorAction SilentlyContinue
+if ($qlDHCP -and $qlDHCP.Status -eq "Running") { $criticalServices += "DHCP Server" }
+
+# SQL Server
+$qlSQL = Get-Service -Name "MSSQL*" -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq "Running" }
+if ($qlSQL) { $criticalServices += "SQL Server ($($qlSQL.Name -join ', '))" }
+
+# FTP
+$qlFTP = Get-Service -Name "FTPSVC" -ErrorAction SilentlyContinue
+if ($qlFTP -and $qlFTP.Status -eq "Running") { $criticalServices += "FTP Server" }
+
+# SNMP
+$qlSNMP = Get-Service -Name "SNMP" -ErrorAction SilentlyContinue
+if ($qlSNMP -and $qlSNMP.Status -eq "Running") { $criticalServices += "SNMP" }
+
+# Docker
+$qlDocker = Get-Service -Name "docker" -ErrorAction SilentlyContinue
+if ($qlDocker -and $qlDocker.Status -eq "Running") { $criticalServices += "Docker" }
+
+# Hyper-V
+$qlHyperV = Get-Service -Name "vmms" -ErrorAction SilentlyContinue
+if ($qlHyperV -and $qlHyperV.Status -eq "Running") { $criticalServices += "Hyper-V" }
+
+# RADIUS / NPS
+$qlNPS = Get-Service -Name "IAS" -ErrorAction SilentlyContinue
+if ($qlNPS -and $qlNPS.Status -eq "Running") { $criticalServices += "NPS / RADIUS" }
+
+# Print critical services list
+Write-Host ""
+if ($criticalServices.Count -gt 0) {
+    Write-Host "[+] Critical Services Detected:" -ForegroundColor $Script:Colors.Blue
+    foreach ($svc in $criticalServices) {
+        Write-Host "    * $svc" -ForegroundColor $Script:Colors.Yellow
+    }
+} else {
+    Write-Host "[+] Critical Services Detected: " -ForegroundColor $Script:Colors.Blue -NoNewline
+    Write-Host "(none)" -ForegroundColor $Script:Colors.Yellow
+}
+
+Write-Host ""
+Write-Host "==================================================================" -ForegroundColor $Script:Colors.Green
+Write-Host ""
+
+# ============================================================================
+# HOST INFORMATION (Full Details)
 # ============================================================================
 
 Write-Section "HOST INFORMATION"

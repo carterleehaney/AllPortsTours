@@ -16,8 +16,8 @@ if ($h) {
     Write-Host "  -e    Comma-separated list of usernames (samAccountName) to exclude from password changes"
     Write-Host "  -u    Comma-separated list of usernames (samAccountName) to include (only change these users)"
     Write-Host "  -h    Show this help message"
-    Write-Host "  -s    Set the admin password non-interactively (skips the interactive prompt)"
-    Write-Host "  -a    Use the admin password for ALL users (by default, non-admins get random passwords)"
+    Write-Host "  -s    Set this password for all users (overrides random password generation)"
+    Write-Host "  -a    Set all users to the same password (uses the admin password for all users)"
     Write-Host ""
     Write-Host "Note: -e and -u cannot be used together."
     Write-Host ""
@@ -112,24 +112,14 @@ if ($DomainController) {
         catch {}
         
         if ($IsDomainAdmin -or $a) {
-            try {
-                Set-AdAccountPassword -Identity "$User" -NewPassword (ConvertTo-SecureString -AsPlainText $AdminPassword -Force) -Reset -ErrorAction Stop
-                Write-Host "[*] Successfully changed $User's password." -ForegroundColor Green
-                $CSVArray += "$User,$AdminPassword"
-            }
-            catch {
-                Write-Host "[X] Failed to change $User's password." -ForegroundColor Red
-            }
+            Set-AdAccountPassword -Identity "$User" -NewPassword (ConvertTo-SecureString -AsPlainText $AdminPassword -Force) -Reset -ErrorAction Stop
+            Write-Host "[*] Successfully changed $User's password." -ForegroundColor Green
+            $CSVArray += "$User,$AdminPassword"
         }
         elseif ($s) {
-            try {
-                Set-AdAccountPassword -Identity "$User" -NewPassword (ConvertTo-SecureString -AsPlainText $s -Force) -Reset -ErrorAction Stop
-                Write-Host "[*] Successfully changed $User's password." -ForegroundColor Green
-                $CSVArray += "$User,$s"
-            }
-            catch {
-                Write-Host "[X] Failed to change $User's password." -ForegroundColor Red
-            }
+            Set-AdAccountPassword -Identity "$User" -NewPassword (ConvertTo-SecureString -AsPlainText $s -Force) -Reset -ErrorAction Stop
+            Write-Host "[*] Successfully changed $User's password." -ForegroundColor Green
+            $CSVArray += "$User,$s"
         }
         else {
             $RandomPassword = Get-Password
@@ -171,24 +161,14 @@ else {
             catch {}
             
             if ($IsAdmin -or $a) {
-                try {
-                    Set-LocalUser -Name "$User" -Password (ConvertTo-SecureString -AsPlainText $AdminPassword -Force) -AccountNeverExpires -ErrorAction Stop
-                    Write-Host "[*] Successfully changed $User's password." -ForegroundColor Green
-                    $CSVArray += "$User,$AdminPassword"
-                }
-                catch {
-                    Write-Host "[X] Failed to change $User's password." -ForegroundColor Red
-                }
+                Set-LocalUser -Name "$User" -Password (ConvertTo-SecureString -AsPlainText $AdminPassword -Force) -AccountNeverExpires -ErrorAction Stop
+                Write-Host "[*] Successfully changed $User's password." -ForegroundColor Green
+                $CSVArray += "$User,$AdminPassword"
             }
             elseif ($s) {
-                try {
-                    Set-LocalUser -Name "$User" -Password (ConvertTo-SecureString -AsPlainText $s -Force) -AccountNeverExpires -ErrorAction Stop
-                    Write-Host "[*] Successfully changed $User's password." -ForegroundColor Green
-                    $CSVArray += "$User,$s"
-                }
-                catch {
-                    Write-Host "[X] Failed to change $User's password." -ForegroundColor Red
-                }
+                Set-LocalUser -Name "$User" -Password (ConvertTo-SecureString -AsPlainText $s -Force) -AccountNeverExpires -ErrorAction Stop
+                Write-Host "[*] Successfully changed $User's password." -ForegroundColor Green
+                $CSVArray += "$User,$s"
             }
             else {
                 $RandomPassword = Get-Password
@@ -219,24 +199,14 @@ else {
             }
             
             if ($User -eq "Administrator" -or $a) {
-                try {
-                    net user $User $AdminPassword
-                    Write-Host "[*] Successfully changed $User's password." -ForegroundColor Green
-                    $CSVArray += "$User,$AdminPassword"
-                }
-                catch {
-                    Write-Host "[X] Failed to change $User's password." -ForegroundColor Red
-                }
+                net user $User $AdminPassword
+                Write-Host "[*] Successfully changed $User's password." -ForegroundColor Green
+                $CSVArray += "$User,$AdminPassword"
             }
             elseif ($s) {
-                try {
-                    net user $User $s
-                    Write-Host "[*] Successfully changed $User's password." -ForegroundColor Green
-                    $CSVArray += "$User,$s"
-                }
-                catch {
-                    Write-Host "[X] Failed to change $User's password." -ForegroundColor Red
-                }
+                net user $User $s
+                Write-Host "[*] Successfully changed $User's password." -ForegroundColor Green
+                $CSVArray += "$User,$s"
             }
             else {
                 $RandomPassword = Get-Password
